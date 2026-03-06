@@ -1,82 +1,169 @@
-# AI Workflow Log:
+# AI Workflow Log
 
-## Tools used
-- ChatGPT (security audit + remediation planning)
+This document describes how AI tools were used during the security review and remediation process.
 
-## How I used AI
-1) Repository triage
-- Prompt: “Scan these files and list the highest-risk vulnerabilities and why.”
-- Inputs: server/index.js, server/middleware/auth.js, server/routes/admin.js, .env
-- Output used: ranked list of critical issues (auth, secrets exposure, debug endpoints, admin authorization)
+---
 
-2) Fix design
-- Prompt: “Propose minimal code changes to secure JWT auth, remove secret leakage, and add role-based admin protection.”
-- Output used: suggested middleware patterns (Bearer parsing, requireRole, token expiry)
+# AI Tool Used
 
-3) Verification mindset
-- Prompt: “What tests should I add to prove the fixes work and prevent regression?”
-- Output used: admin endpoints require admin role, login rate limit, debug endpoints disabled in prod
+* **ChatGPT** — vulnerability analysis, remediation planning, and secure code refactoring guidance.
 
-## Fix 2 - JWT/auth remediation
-Tool used:
-- ChatGPT
+The AI tool was used as a **development assistant**, not as an automated solution generator.
+All changes were reviewed and implemented manually.
 
-How I used it:
-- I asked for a targeted review of the authentication middleware and a patch plan.
+---
 
-What I accepted:
-- Replaced hardcoded JWT secret with environment variable
-- Added startup failure if JWT secret is missing
-- Changed token parsing to standard Bearer format
-- Removed password from JWT payload
-- Added token expiry
-- Removed token and stack trace leakage from logs/responses
+# Workflow Overview
 
-What I rejected:
-- Keeping detailed token failure output for debugging
+## 1. Repository Security Triage
 
-Why:
-- That output exposed raw tokens and internal error details, which is not acceptable in a production-facing authentication path.
-- These changes reduce token forgery risk, prevent credential leakage, and align the middleware with standard API authentication practices.
+**Goal:** Identify the highest-risk vulnerabilities.
 
-## Fix 3 - Server hardening
+**Inputs provided to AI**
 
-Tool used:
-- ChatGPT
+* `server/index.js`
+* `server/middleware/auth.js`
+* `server/routes/admin.js`
+* `.env`
 
-How I used it:
-- I provided the main Express entrypoint and asked for a minimal hardening pass focused on sensitive data exposure and access control.
+**AI Assistance**
 
-What I accepted:
-- Removed debug endpoint
-- Sanitized health check
-- Replaced verbose request logging with minimal request metadata
-- Removed password/token logging from login flow
-- Added login rate limiting
-- Added authentication middleware to admin routes
-- Removed password fields from returned user objects
-- Restricted CORS to configured frontend origin
+AI helped highlight several critical issues:
 
-What I rejected:
-- Keeping debugging-oriented logs that included request headers, bodies, JWTs, and stack traces
+* secrets committed to the repository
+* insecure JWT implementation
+* debug endpoints exposing environment variables
+* broken access control on admin routes
+* excessive logging of sensitive data
 
-Why:
-- Those logs and endpoints created direct exposure of credentials, tokens, internal config, and operational details.
+These findings were validated manually before remediation.
 
-## What I accepted and why
-- Accepted: moving JWT secret to env + removing password from JWT payload (prevents credential leakage)
-- Accepted: protecting /api/admin with auth + role checks (prevents unauthenticated admin actions)
-- Accepted: removing debug endpoints / sanitizing health response (prevents secret exfiltration)
-- Accepted: adding rate limiting to login (reduces brute force risk)
+---
 
-## What I rejected and why
-- Rejected: “Just hide the debug route behind obscurity” (security through obscurity)
-- Rejected: “Log full request headers for troubleshooting” (leaks tokens and PII)
+## 2. Authentication Hardening
 
-## Evidence
-- I kept commits small and descriptive:
-  - `fix(secrets): remove .env and add .env.example`
-  - `fix(auth): secure JWT handling (env secret, expiry, bearer parsing)`
-  - `fix(admin): require admin role for admin routes; remove export/impersonate`
-  - `fix(logging): stop logging sensitive data; disable debug endpoints`
-  - `feat(security): rate limit login`
+**Files modified**
+
+* `server/middleware/auth.js`
+
+**AI-assisted improvements**
+
+* moved JWT secret to environment variable (`JWT_SECRET`)
+* removed password from JWT payload
+* implemented proper **Bearer token parsing**
+* added token expiration
+* removed token and stack trace leakage from logs
+* removed sensitive error details returned to clients
+
+**Reasoning**
+
+These changes prevent:
+
+* token forgery
+* credential leakage
+* exposure of sensitive authentication data
+
+---
+
+## 3. Server Hardening
+
+**Files modified**
+
+* `server/index.js`
+
+**AI-assisted improvements**
+
+* removed `/api/debug` endpoint exposing environment variables
+* sanitized `/api/health` endpoint
+* removed logging of request headers and bodies
+* removed password and token logging during login
+* added login rate limiting using `express-rate-limit`
+* restricted CORS to configured frontend origin
+* removed secret values from startup logs
+
+**Reasoning**
+
+These fixes reduce the risk of:
+
+* credential exposure
+* configuration leaks
+* brute-force login attacks
+
+---
+
+## 4. Admin Authorization Fix
+
+**Files modified**
+
+* `server/routes/admin.js`
+
+**AI-assisted improvements**
+
+* implemented **admin-only authorization middleware**
+* sanitized user objects returned from admin endpoints
+* disabled dangerous endpoints:
+
+  * `/export`
+  * `/impersonate`
+* added validation for point adjustments
+
+**Reasoning**
+
+These changes prevent:
+
+* privilege escalation
+* account impersonation
+* full system data exfiltration
+
+---
+
+# Decisions Accepted
+
+The following AI suggestions were implemented:
+
+* move JWT secret to environment variables
+* remove password from JWT payload
+* enforce authentication for admin routes
+* enforce admin-role authorization
+* remove debug endpoints leaking configuration
+* sanitize API responses containing user objects
+* add login rate limiting
+* reduce sensitive logging
+
+These changes significantly reduced the application's attack surface.
+
+---
+
+# Decisions Rejected
+
+Some suggestions were intentionally rejected after review:
+
+* keeping debug endpoints behind authentication
+* logging request headers for troubleshooting
+
+These approaches were rejected because they still risk exposing sensitive information.
+
+---
+
+# Evidence of Changes
+
+The following commits were created during remediation:
+
+```
+fix(secrets): remove .env from repo and add .env.example
+fix(auth): secure JWT secret handling and token parsing
+fix(server): reduce sensitive exposure and protect admin routes
+fix(admin): enforce admin role and disable unsafe endpoints
+feat(security): add login rate limiting
+```
+
+---
+
+# Summary
+
+AI tools were used to **accelerate security analysis and propose remediation strategies**, while all changes were:
+
+* manually reviewed
+* implemented by the developer
+* validated through local testing
+

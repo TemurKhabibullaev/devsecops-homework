@@ -2,28 +2,40 @@
 
 ## Scope
 
-The audit reviewed the following components:
+This audit reviewed the following parts of the application:
 
 * **Backend:** Express API (`server/`)
-* **Frontend:** React application (`client/`)
+* **Frontend:** React client (`client/`)
 * **Configuration:** environment variables (`.env`)
-* **Authentication:** JWT-based login system
+* **Authentication:** JWT login system
 * **Administrative endpoints**
 
-The objective was to identify **security vulnerabilities, prioritize risks, and implement remediation for the most critical issues**.
+Goal: identify vulnerabilities, prioritize risk, and remediate the **most critical security issues**.
 
 ---
 
-# Critical Findings
+# Files Modified During Remediation
 
-## 1. Secrets Committed to Repository (`.env`)
+The following files were updated to fix security issues:
+
+* `server/middleware/auth.js`
+* `server/index.js`
+* `server/routes/admin.js`
+* `.gitignore`
+* `.env.example`
+
+---
+
+# Critical Findings & Fixes
+
+## 1. Secrets Committed to Repository
 
 **Severity:** Critical
-**Category:** Secrets Management / Credential Exposure
+**Category:** Secrets Management
 
-### Description
+### Issue
 
-Sensitive credentials were committed to the repository in a `.env` file, including:
+A `.env` file containing sensitive credentials was committed to the repository, including:
 
 * MongoDB connection string
 * AWS credentials
@@ -31,187 +43,196 @@ Sensitive credentials were committed to the repository in a `.env` file, includi
 * JWT secret
 * Admin credentials
 
-If this repository were public or accessed by unauthorized users, these credentials could allow attackers to:
+If exposed publicly, these credentials could allow attackers to:
 
-* access or modify the database
+* access the database
 * impersonate users
-* issue fraudulent payment requests
-* gain administrative privileges
+* issue fraudulent payments
+* gain administrative access
 
-### Remediation Implemented
+### Fix Implemented
 
 * Removed `.env` from version control
 * Added `.env` to `.gitignore`
 * Added `.env.example` template to document required environment variables
 
-### Recommended Production Practice
+### Production Recommendation
 
-Secrets should **never be stored in source code**.
-Instead they should be injected at runtime using a secret manager such as:
+Secrets should be stored outside the codebase using a secret manager such as:
 
 * AWS Secrets Manager
-* AWS Systems Manager Parameter Store
 * HashiCorp Vault
 
-Additionally, all exposed credentials should be **rotated immediately**.
+All exposed credentials should also be **rotated immediately**.
 
 ---
 
-# 2. Broken Access Control on Admin Endpoints
+## 2. Broken Access Control on Admin Endpoints
 
 **Severity:** Critical
 **Category:** OWASP Top 10 — Broken Access Control
 
-### Description
+### Issue
 
-Administrative routes were mounted without authentication protection:
+Administrative routes (`/api/admin/*`) were accessible without proper authorization.
 
-`/api/admin/*`
+Some endpoints allowed:
 
-Additionally, certain endpoints allowed:
-
-* exporting application configuration
+* exporting full application data
 * impersonating users
-* accessing administrative data without verification
+* viewing internal system configuration
 
-This could allow an attacker to:
+This could allow attackers to escalate privileges or access sensitive data.
 
-* escalate privileges
-* impersonate other users
-* exfiltrate sensitive system information
+### Fix Implemented
 
-### Remediation Implemented
+Updates in:
 
-* Added authentication middleware to protect `/api/admin` routes
-* Required valid JWT token before accessing admin endpoints
-* Removed debug endpoints leaking configuration
+`server/index.js`
+`server/routes/admin.js`
 
-### Future Improvements
+Changes:
 
-* enforce **role-based authorization** (admin-only access)
-* log all administrative actions
+* Added authentication middleware to `/api/admin`
+* Implemented **admin-only authorization**
+* Disabled dangerous endpoints:
+
+  * `/export`
+  * `/impersonate`
 
 ---
 
-# 3. Insecure JWT Implementation
+## 3. Insecure JWT Authentication
 
 **Severity:** Critical
 **Category:** Authentication / Token Security
 
-### Description
+### Issue
 
-The authentication middleware contained multiple vulnerabilities:
+Authentication middleware had several weaknesses:
 
-* hardcoded JWT secret in source code
-* password included inside JWT payload
-* improper parsing of authorization header
+* JWT secret hardcoded in source code
+* password included in JWT payload
+* improper Authorization header parsing
+* tokens logged in server logs
 * detailed token errors returned to clients
-* sensitive token data logged to server logs
 
-These weaknesses could allow attackers to:
+These issues could allow attackers to forge tokens or extract credentials.
 
-* forge authentication tokens
-* extract credentials from tokens
-* obtain tokens from log files
+### Fix Implemented
 
-### Remediation Implemented (`server/middleware/auth.js`)
+Updates in:
+
+`server/middleware/auth.js`
+
+Changes:
 
 * moved JWT secret to environment variable (`JWT_SECRET`)
 * removed password from JWT payload
 * implemented proper **Bearer token parsing**
-* added **token expiration**
-* removed sensitive token data from logs
-* stopped returning token details in error responses
-
-These changes align authentication behavior with common API security practices.
+* added token expiration
+* removed sensitive token logging
+* removed token details from error responses
 
 ---
 
-# 4. Sensitive Data Exposure via Debug and Logging
+## 4. Sensitive Data Exposure via Debug and Logging
 
 **Severity:** Critical
-**Category:** Sensitive Data Exposure
+**Category:** Information Disclosure
 
-### Description
+### Issue
 
-The application exposed sensitive information through:
+Sensitive information was exposed through:
 
 * `/api/debug` endpoint exposing environment variables
-* `/api/health` endpoint leaking database connection strings
+* `/api/health` revealing database connection strings
 * verbose request logging including headers and bodies
 * login logs containing plaintext passwords
-* startup logs printing JWT secrets and database credentials
-* error responses including full stack traces
+* startup logs printing secrets
+* error responses exposing stack traces
 
-These exposures could allow attackers to collect credentials or internal configuration data.
+These exposures could allow attackers to collect internal configuration or credentials.
 
-### Remediation Implemented
+### Fix Implemented
 
-* removed `/api/debug` endpoint
-* sanitized `/api/health` response
-* removed logging of request bodies and headers
+Updates in:
+
+`server/index.js`
+
+Changes:
+
+* removed `/api/debug`
+* sanitized `/api/health`
+* removed request body/header logging
 * removed password and token logging
+* removed secret output from startup logs
 * sanitized error responses
-* removed secrets from startup logs
 * added login rate limiting
 
 ---
 
-# Medium-Severity Findings
+# Medium Severity Issues
 
-## Overly Permissive CORS Configuration
+## Overly Permissive CORS
 
-The API originally allowed requests from **any origin**.
+**Issue**
 
-### Risk
+The API originally allowed requests from any origin.
 
-This can allow malicious websites to make authenticated requests from a user's browser.
+### Fix
 
-### Mitigation Implemented
-
-CORS now restricts access to a configured frontend origin:
+Restricted CORS to a configured frontend origin:
 
 `CLIENT_ORIGIN`
 
+Implemented in:
+
+`server/index.js`
+
 ---
 
-## Brute Force Risk on Login Endpoint
+## No Login Rate Limiting
 
-The login endpoint previously had **no rate limiting**.
+**Issue**
 
-### Risk
+The login endpoint allowed unlimited authentication attempts.
 
-Attackers could attempt unlimited credential guesses.
+### Fix
 
-### Mitigation Implemented
-
-Added request throttling using:
+Added throttling using:
 
 `express-rate-limit`
+
+Implemented in:
+
+`server/index.js`
 
 ---
 
 ## Excessive Error Information
 
-The API previously returned full stack traces in responses.
+**Issue**
 
-### Risk
+The API returned full stack traces in error responses.
 
-Stack traces expose internal implementation details.
-
-### Mitigation Implemented
+### Fix
 
 Error responses now return minimal information in production environments.
 
+Implemented in:
+
+`server/index.js`
+
 ---
 
-# Fix Implementation Order(server/index.js)
+# Remediation Order
 
-The remediation work followed this priority:
+Security fixes were implemented in the following order:
 
-1. Remove committed secrets
+1. Remove exposed secrets
 2. Harden JWT authentication
-3. Protect administrative endpoints
+3. Secure admin endpoints
 4. Remove debug endpoints and sensitive logging
 5. Add rate limiting and restrict CORS
 
@@ -219,34 +240,38 @@ The remediation work followed this priority:
 
 # Validation
 
-The following validation checks were performed:
+The following checks were performed after remediation.
 
 ### Access Control
 
-Attempting to access admin routes without a token now returns:
+Accessing admin routes without authentication returns:
 
-`401 Unauthorized`
+401 Unauthorized
+
+Non-admin users attempting admin actions receive:
+
+403 Forbidden
 
 ### Sensitive Data Exposure
 
-* `/api/health` no longer exposes database connection strings
 * `/api/debug` endpoint removed
+* `/api/health` no longer exposes database configuration
 
 ### Authentication
 
+* JWT tokens now expire
+* passwords are not included in JWT payloads
 * invalid tokens are rejected
-* expired tokens cannot be used
-* passwords are not present in JWT payloads
 
 ---
 
 # Summary
 
-The application originally contained multiple **high-impact security vulnerabilities**, primarily related to:
+The application originally contained several **high-impact vulnerabilities**, including:
 
 * credential exposure
-* authentication weaknesses
 * broken access control
-* excessive debug logging
+* insecure authentication
+* excessive logging of sensitive data
 
-The implemented remediations significantly reduce the attack surface and align the application with standard **secure API development practices**.
+The implemented fixes significantly reduce the attack surface and align the application with **secure API development practices**.
