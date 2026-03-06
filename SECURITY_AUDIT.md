@@ -102,6 +102,27 @@ Changes:
 
 ---
 
+Additional finding during verification:
+- Login response still exposed excessive resident PII and payment data, including SSN, address, card number, CVV, and emergency contact details.
+
+Additional fix implemented:
+- Reduced login response to minimum required user profile fields only.
+- Updated admin authorization to allow valid admin roles used by the application (`admin`, `super_admin`).
+
+## Verification
+
+Manual verification completed after remediation:
+
+- `/api/health` returns only non-sensitive service metadata
+- `/api/debug` no longer exists
+- Login still works for valid resident and admin users
+- Login response no longer exposes password fields
+- `/api/admin/stats` fails without a token
+- `/api/admin/stats` fails with a resident token
+- `/api/admin/stats` succeeds with an admin token
+- `/api/admin/export` is disabled
+- `/api/admin/impersonate` is disabled
+
 ## 3. Insecure JWT Authentication
 
 **Severity:** Critical
@@ -177,7 +198,6 @@ Changes:
 ## Overly Permissive CORS
 
 **Issue**
-
 The API originally allowed requests from any origin.
 
 ### Fix
@@ -217,19 +237,14 @@ Implemented in:
 The API returned full stack traces in error responses.
 
 ### Fix
-
 Error responses now return minimal information in production environments.
-
 Implemented in:
-
 `server/index.js`
 
 ---
 
 # Remediation Order
-
 Security fixes were implemented in the following order:
-
 1. Remove exposed secrets
 2. Harden JWT authentication
 3. Secure admin endpoints
@@ -239,17 +254,13 @@ Security fixes were implemented in the following order:
 ---
 
 # Validation
-
 The following checks were performed after remediation.
 
 ### Access Control
-
 Accessing admin routes without authentication returns:
-
 401 Unauthorized
 
 Non-admin users attempting admin actions receive:
-
 403 Forbidden
 
 ### Sensitive Data Exposure
@@ -266,9 +277,7 @@ Non-admin users attempting admin actions receive:
 ---
 
 # Summary
-
 The application originally contained several **high-impact vulnerabilities**, including:
-
 * credential exposure
 * broken access control
 * insecure authentication

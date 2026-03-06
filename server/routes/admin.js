@@ -8,10 +8,13 @@ const sanitizeUser = (user) => {
 };
 
 const requireAdmin = (req, res, next) => {
-  if (!req.user || req.user.role !== 'admin') {
+  const allowedRoles = ['admin', 'super_admin'];
+
+  if (!req.user || !allowedRoles.includes(req.user.role)) {
     console.log(`[ADMIN] Forbidden access attempt to ${req.method} ${req.originalUrl} from IP: ${req.ip}`);
     return res.status(403).json({ error: 'Forbidden' });
   }
+
   next();
 };
 

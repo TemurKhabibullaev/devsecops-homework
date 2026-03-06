@@ -43,8 +43,27 @@ const loginLimiter = rateLimit({
 
 // Helper to remove password from returned user objects
 const sanitizeUser = (user) => {
-  const { password, ...safeUser } = user;
-  return safeUser;
+  if (!user) return user;
+
+  if (user.role === 'super_admin' || user.role === 'admin') {
+    return {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      name: user.name
+    };
+  }
+
+  return {
+    id: user.id,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    email: user.email,
+    points: user.points,
+    tier: user.tier,
+    unitNumber: user.unitNumber,
+    propertyId: user.propertyId
+  };
 };
 
 // Auth routes
