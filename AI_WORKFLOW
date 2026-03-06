@@ -39,6 +39,30 @@ Why:
 - That output exposed raw tokens and internal error details, which is not acceptable in a production-facing authentication path.
 - These changes reduce token forgery risk, prevent credential leakage, and align the middleware with standard API authentication practices.
 
+## Fix 3 - Server hardening
+
+Tool used:
+- ChatGPT
+
+How I used it:
+- I provided the main Express entrypoint and asked for a minimal hardening pass focused on sensitive data exposure and access control.
+
+What I accepted:
+- Removed debug endpoint
+- Sanitized health check
+- Replaced verbose request logging with minimal request metadata
+- Removed password/token logging from login flow
+- Added login rate limiting
+- Added authentication middleware to admin routes
+- Removed password fields from returned user objects
+- Restricted CORS to configured frontend origin
+
+What I rejected:
+- Keeping debugging-oriented logs that included request headers, bodies, JWTs, and stack traces
+
+Why:
+- Those logs and endpoints created direct exposure of credentials, tokens, internal config, and operational details.
+
 ## What I accepted and why
 - Accepted: moving JWT secret to env + removing password from JWT payload (prevents credential leakage)
 - Accepted: protecting /api/admin with auth + role checks (prevents unauthenticated admin actions)
