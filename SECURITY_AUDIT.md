@@ -184,6 +184,30 @@ After remediation, the following checks were performed:
 
 ---
 
+## Extra Credit — Secure Admin Dashboard
+
+A small admin dashboard feature was added using the existing secured admin stats endpoint:
+
+`GET /api/admin/stats`
+
+Security design:
+- endpoint requires JWT authentication
+- endpoint enforces admin-only authorization
+- resident users receive `403 Forbidden`
+- admin users receive aggregate system statistics only
+- no sensitive resident data is returned
+
+Verification performed:
+- resident token request to `/api/admin/stats` returned `403 Forbidden`
+- admin token request to `/api/admin/stats` returned `200 OK`
+- response included:
+  - total residents
+  - total points outstanding
+  - total redemptions
+  - active gift cards
+
+---
+
 # Summary
 
 The application initially contained several high-impact vulnerabilities:

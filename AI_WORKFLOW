@@ -171,6 +171,43 @@ fix(admin): enforce admin role and disable unsafe endpoints
 feat(security): add login rate limiting
 
 ---
+## 7. Extra Credit - Secure Admin Dashboard
+
+AI was used to help design a small admin dashboard feature that reused the secured backend rather than introducing a new insecure path.
+
+Implemented approach:
+- admin dashboard consumes the existing `/api/admin/stats` endpoint
+- endpoint requires JWT authentication
+- endpoint enforces admin-only access
+- only minimal aggregate statistics are returned
+
+Verification:
+- tested endpoint with a resident token and confirmed `403 Forbidden`
+- tested endpoint with an admin token and confirmed `200 OK`
+- confirmed only non-sensitive dashboard metrics were returned
+
+Evidence:
+@TemurKhabibullaev ➜ /workspaces/devsecops-homework (security-fixes) $  curl i http://localhost:3001/api/admin/stats   -H "Authorization: Bearer token"
+
+HTTP/1.1 200 OK
+X-Powered-By: Express
+Access-Control-Allow-Origin: http://localhost:3000
+Vary: Origin
+Content-Type: application/json; charset=utf-8
+Content-Length: 109
+ETag: W/"6d-jc0sdZayF9vHNBlix2sDlrW0O3o"
+Date: Fri, 06 Mar 2026 15:28:36 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{
+  "totalResidents": 3,
+  "totalPointsOutstanding": 52350,
+  "totalRedemptions": 2,
+  "activeGiftCards": 7
+}
+
+---
 
 # Summary
 

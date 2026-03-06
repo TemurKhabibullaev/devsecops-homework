@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Dashboard from './components/Dashboard';
+import AdminDashboard from './pages/AdminDashboard';
 import Login from './components/Login';
 import './App.css';
 
@@ -8,10 +9,9 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is already logged in
     const savedUser = localStorage.getItem('casaperks_user');
     const savedToken = localStorage.getItem('casaperks_token');
-    
+
     if (savedUser && savedToken) {
       setUser(JSON.parse(savedUser));
     }
@@ -41,8 +41,15 @@ function App() {
           </div>
         )}
       </header>
+
       <main>
-        {user ? <Dashboard user={user} /> : <Login onLogin={handleLogin} />}
+        {!user ? (
+          <Login onLogin={handleLogin} />
+        ) : user.role === 'admin' || user.role === 'super_admin' ? (
+          <AdminDashboard user={user} />
+        ) : (
+          <Dashboard user={user} />
+        )}
       </main>
     </div>
   );
