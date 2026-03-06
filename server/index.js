@@ -2,115 +2,116 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const morgan = require('morgan');
+const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const residentsRouter = require('./routes/residents');
 const rewardsRouter = require('./routes/rewards');
 const adminRouter = require('./routes/admin');
-const { generateToken, JWT_SECRET } = require('./middleware/auth');
+const { generateToken, authenticateToken } = require('./middleware/auth');
 const { residents, adminUsers } = require('./data/mock');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const isProduction = process.env.NODE_ENV === 'production';
+const allowedOrigin = process.env.CLIENT_ORIGIN || 'http://localhost:3000';
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: allowedOrigin
+}));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-app.use(morgan('dev'));
+app.use(morgan(isProduction ? 'combined' : 'dev'));
 
-// Enable debug mode
-app.set('env', 'development');
 app.set('json spaces', 2);
 
-// Request logging
+// Safer request logging
 app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-  console.log('[REQUEST BODY]', JSON.stringify(req.body));
-  console.log('[REQUEST HEADERS]', JSON.stringify(req.headers));
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} from IP: ${req.ip}`);
   next();
 });
 
+// Rate limit login attempts
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many login attempts, please try again later.' }
+});
+
+// Helper to remove password from returned user objects
+const sanitizeUser = (user) => {
+  const { password, ...safeUser } = user;
+  return safeUser;
+};
+
 // Auth routes
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', loginLimiter, (req, res) => {
   const { email, password } = req.body;
-  
-  console.log(`[LOGIN] Attempt: email=${email}, password=${password}`);
-  
+
+  console.log(`[LOGIN] Attempt for email=${email}`);
+
   // Check residents
   const resident = residents.find(r => r.email === email && r.password === password);
   if (resident) {
     const token = generateToken(resident);
-    console.log(`[LOGIN] Success for resident: ${email}, token: ${token}`);
+    console.log(`[LOGIN] Success for resident: ${email}`);
     return res.json({
       success: true,
-      token: token,
-      user: resident
+      token,
+      user: sanitizeUser(resident)
     });
   }
-  
+
   // Check admin users
   const admin = adminUsers.find(a => a.email === email && a.password === password);
   if (admin) {
     const token = generateToken(admin);
-    console.log(`[LOGIN] Admin login success: ${email}, token: ${token}`);
+    console.log(`[LOGIN] Admin login success: ${email}`);
     return res.json({
       success: true,
-      token: token,
-      user: admin
+      token,
+      user: sanitizeUser(admin)
     });
   }
-  
-  console.log(`[LOGIN] Failed attempt for: ${email} with password: ${password}`);
-  res.status(401).json({ 
-    error: 'Invalid credentials',
-    attempted_email: email
+
+  console.log(`[LOGIN] Failed attempt for email=${email}`);
+  res.status(401).json({
+    error: 'Invalid credentials'
   });
 });
 
 // API Routes
 app.use('/api/residents', residentsRouter);
 app.use('/api/rewards', rewardsRouter);
-app.use('/api/admin', adminRouter);
+app.use('/api/admin', authenticateToken, adminRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
-    version: '1.0.0',
-    environment: process.env.NODE_ENV,
-    database: process.env.MONGO_URI,
-    uptime: process.uptime()
-  });
-});
-
-// Debug endpoint
-app.get('/api/debug', (req, res) => {
   res.json({
-    env: process.env,
-    memoryUsage: process.memoryUsage(),
-    config: {
-      jwtSecret: JWT_SECRET,
-      port: PORT
-    }
+    status: 'ok',
+    version: '1.0.0',
+    uptime: process.uptime()
   });
 });
 
 // Error handler
 app.use((err, req, res, next) => {
-  console.error('[ERROR]', err);
+  console.error('[ERROR]', err.message);
+
   res.status(err.status || 500).json({
-    error: err.message,
-    stack: err.stack,
-    path: req.path,
-    method: req.method,
-    timestamp: new Date().toISOString()
+    error: isProduction ? 'Internal Server Error' : err.message,
+    ...(isProduction ? {} : {
+      path: req.path,
+      method: req.method,
+      timestamp: new Date().toISOString()
+    })
   });
 });
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🚀 CasaPerks Rewards API running on http://localhost:${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV}`);
-  console.log(`JWT Secret: ${JWT_SECRET}`);
-  console.log(`Database: ${process.env.MONGO_URI}\n`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}\n`);
 });
