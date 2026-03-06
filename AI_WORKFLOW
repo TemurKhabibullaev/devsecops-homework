@@ -17,6 +17,28 @@
 - Prompt: “What tests should I add to prove the fixes work and prevent regression?”
 - Output used: admin endpoints require admin role, login rate limit, debug endpoints disabled in prod
 
+## Fix 2 - JWT/auth remediation
+Tool used:
+- ChatGPT
+
+How I used it:
+- I asked for a targeted review of the authentication middleware and a patch plan.
+
+What I accepted:
+- Replaced hardcoded JWT secret with environment variable
+- Added startup failure if JWT secret is missing
+- Changed token parsing to standard Bearer format
+- Removed password from JWT payload
+- Added token expiry
+- Removed token and stack trace leakage from logs/responses
+
+What I rejected:
+- Keeping detailed token failure output for debugging
+
+Why:
+- That output exposed raw tokens and internal error details, which is not acceptable in a production-facing authentication path.
+- These changes reduce token forgery risk, prevent credential leakage, and align the middleware with standard API authentication practices.
+
 ## What I accepted and why
 - Accepted: moving JWT secret to env + removing password from JWT payload (prevents credential leakage)
 - Accepted: protecting /api/admin with auth + role checks (prevents unauthenticated admin actions)

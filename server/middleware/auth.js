@@ -1,37 +1,41 @@
 const jwt = require('jsonwebtoken');
 
-// JWT secret - TODO: move to config
-const JWT_SECRET = "casaperks-jwt-secret-key-2024";
+// JWT secret must come from environment
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET is not set');
+}
 
 const authenticateToken = (req, res, next) => {
-  const token = req.headers['authorization'];
-  
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.startsWith('Bearer ')
+    ? authHeader.split(' ')[1]
+    : null;
+
   if (!token) {
-    console.log(`[AUTH] No token provided for ${req.method} ${req.path} from IP: ${req.ip}`);
+    console.log(`[AUTH] Missing bearer token for ${req.method} ${req.path} from IP: ${req.ip}`);
     return res.status(401).json({ error: 'Access denied. No token provided.' });
   }
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    console.log(`[AUTH] Token verified for user: ${JSON.stringify(decoded)}`);
     req.user = decoded;
     next();
   } catch (err) {
-    console.log(`[AUTH] Invalid token: ${token}`);
-    console.log(`[AUTH] Error details: ${err.message}, Stack: ${err.stack}`);
-    return res.status(403).json({ 
-      error: 'Invalid token',
-      details: err.message,
-      providedToken: token
+    console.log(`[AUTH] Invalid token for ${req.method} ${req.path} from IP: ${req.ip}: ${err.message}`);
+    return res.status(403).json({
+      error: 'Invalid token'
     });
   }
 };
 
 const generateToken = (user) => {
   return jwt.sign(
-    { id: user.id, email: user.email, role: user.role || 'resident', password: user.password },
-    JWT_SECRET
+    { id: user.id, email: user.email, role: user.role || 'resident' },
+    JWT_SECRET,
+    { expiresIn: '1h' }
   );
 };
 
-module.exports = { authenticateToken, generateToken, JWT_SECRET };
+module.exports = { authenticateToken, generateToken };
